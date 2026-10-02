@@ -560,131 +560,101 @@
 
   function postToAppsScript(data) {
 
-    return new Promise(function(
-      resolve,
-      reject
-    ) {
+  return new Promise(function(resolve, reject) {
 
-      const requestId =
-        makeRequestId();
+    const requestId = makeRequestId();
 
-      const iframe =
-        document.getElementById(
-          "apiFrame"
-        );
+    const iframe = document.getElementById("apiFrame");
 
-      function receive(event) {
+    function receive(event) {
 
-        if (
-          event.origin !==
-          "https://script.google.com"
-          &&
-          event.origin !==
-          "https://script.googleusercontent.com"
-        ) {
-          return;
-        }
-
-        const data =
-          event.data;
-
-        if (
-          !data ||
-          data.type !==
-          "voucher-api"
-        ) {
-          return;
-        }
-
-        if (
-          data.requestId !==
-          requestId
-        ) {
-          return;
-        }
-
-        window.removeEventListener(
-          "message",
-          receive
-        );
-
-        resolve(
-          data.result
-        );
+      if (
+        event.origin !== "https://script.google.com" &&
+        event.origin !== "https://script.googleusercontent.com"
+      ) {
+        return;
       }
 
+      const message = event.data;
 
-      window.addEventListener(
+      if (
+        !message ||
+        message.type !== "voucher-api"
+      ) {
+        return;
+      }
+
+      if (
+        message.requestId !== requestId
+      ) {
+        return;
+      }
+
+      window.removeEventListener(
         "message",
         receive
       );
 
+      if (form && form.parentNode) {
+        form.remove();
+      }
 
-      const form =
-        document.createElement(
-          "form"
-        );
+      clearTimeout(timeout);
 
-      form.method =
-        "POST";
+      resolve(message.result);
+    }
 
-      form.action =
-        API_URL;
+    window.addEventListener(
+      "message",
+      receive
+    );
 
-      form.target =
-        iframe.name;
+    const form =
+      document.createElement("form");
 
-      form.style.display =
-        "none";
+    form.method = "POST";
+    form.action = API_URL;
+    form.target = iframe.name;
+    form.style.display = "none";
 
+    const payload = {
+      ...data,
+      requestId: requestId
+    };
 
-      const payload = {
-        ...data,
-        requestId:
-          requestId
-      };
+    Object.keys(payload).forEach(function(key) {
 
+      const input =
+        document.createElement("input");
 
-      Object.keys(payload)
-        .forEach(function(key) {
+      input.type = "hidden";
+      input.name = key;
+      input.value =
+        payload[key] == null
+          ? ""
+          : String(payload[key]);
 
-          const input =
-            document.createElement(
-              "input"
-            );
+      form.appendChild(input);
+    });
 
-          input.type =
-            "hidden";
+    document.body.appendChild(form);
 
-          input.name =
-            key;
+    // DŮLEŽITÉ:
+    // Formulář nemažeme ihned po submit().
+    // Musí zůstat v DOM, dokud Apps Script neodpoví.
+    form.submit();
 
-          input.value =
-            payload[key] == null
-              ? ""
-              : payload[key];
-
-          form.appendChild(
-            input
-          );
-        });
-
-
-      document.body.appendChild(
-        form
-      );
-
-      form.submit();
-
-      form.remove();
-
-
+    const timeout =
       setTimeout(function() {
 
         window.removeEventListener(
           "message",
           receive
         );
+
+        if (form && form.parentNode) {
+          form.remove();
+        }
 
         reject(
           new Error(
@@ -694,10 +664,8 @@
 
       }, 30000);
 
-    });
-  }
-
-
+  });
+}
   // ============================================================
   // VYTVOŘENÍ VOUCHERU
   // ============================================================
